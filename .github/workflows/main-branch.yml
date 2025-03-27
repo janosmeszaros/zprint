@@ -31,6 +31,10 @@ jobs:
           cli: latest
           lein: 2.9.1                  # Leiningen
 
+
+      - name: Execute clojure
+        run: clojure --version
+
       - name: Uberjar
         run: lein uberjar
 
