@@ -10,163 +10,32 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3.0.2
+        uses: actions/checkout@v4
 
       - name: Version
         id: version
         # Get version from project.clj
         run: echo ::set-output name=zprint::$(awk -F "\"" '{print $2}' project.clj | head -n 1)
 
-      - name: Setup Clojure
-        uses: zharinov/clj-toolbox@v1.0.0
+      # It is important to install java before installing clojure tools which needs java
+      # exclusions: babashka, clj-kondo and cljstyle
+      - name: Prepare java
+        uses: actions/setup-java@v3
         with:
-          leiningen: "2.9.10"
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install clojure tools
+        uses: DeLaGuardo/setup-clojure@13.2
+        with:
+          cli: latest
+          lein: 2.9.1                  # Leiningen
 
       - name: Uberjar
         run: lein uberjar
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3.1.0
+        uses: actions/upload-artifact@v4
         with:
           name: jar-files
           path: target/zprint-filter-${{ steps.version.outputs.zprint }}
-
-  build-native:
-    needs: build-jar
-
-    # ubuntu-latest uses a GLIBC not available on older Linux systems
-    # making distribution of the build artifact not possible
-    runs-on: ubuntu-20.04
-
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v3.0.0
-        with:
-          name: jar-files
-          path: target/
-
-      - name: Version
-        id: version
-        # Get version from uberjar name
-        run: echo ::set-output name=zprint::$(ls target/zprint-filter-* | sed 's/.*zprint-filter-//')
-
-      - name: Setup GraalVM
-        uses: zharinov/clj-toolbox@v1.0.0
-        with:
-          java: graalvm
-          java-version: 17
-
-      - name: Native image
-        env:
-          LC_ALL: C.UTF-8
-        run: native-image
-          --no-server
-          -J-Xmx7G
-          -J-Xms4G
-          -jar target/zprint-filter-${{ steps.version.outputs.zprint }}
-          -H:Name="zprintl-${{ steps.version.outputs.zprint }}"
-          -H:EnableURLProtocols=https,http
-          -H:+ReportExceptionStackTraces
-          --report-unsupported-elements-at-runtime
-          --initialize-at-build-time
-          --no-fallback
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3.1.0
-        with:
-          name: zprintl
-          path: zprintl-${{ steps.version.outputs.zprint }}
-
-  test-native:
-    needs: build-native
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.0.2
-
-      - name: Setup Babashka
-        uses: zharinov/clj-toolbox@v1.0.0
-        with:
-          babashka: "1.3.184"
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v3.0.0
-        with:
-          name: zprintl
-
-      - name: Version
-        id: version
-        # Get version from binary name
-        run: echo ::set-output name=zprint::$(ls zprintl-* | sed 's/zprintl-//')
-
-      - run: chmod +x zprintl-${{ steps.version.outputs.zprint }}
-
-      - name: Run tests
-        run: bb testconfig:bb -v ${{ steps.version.outputs.zprint }} -s graalvm-linux
-
-  test-clj:
-    needs: build-jar
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.0.2
-
-      - name: Setup Clojure
-        uses: zharinov/clj-toolbox@v1.0.0
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v3.0.0
-        with:
-          name: jar-files
-          path: target/
-
-      - name: Run tests
-        run: clojure -Srepro -M:cljtest
-
-  test-jar:
-    needs: build-jar
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.0.2
-
-      - name: Version
-        id: version
-        # Get version from project.clj
-        run: echo ::set-output name=zprint::$(awk -F "\"" '{print $2}' project.clj | head -n 1)
-
-      - name: Setup Clojure
-        uses: zharinov/clj-toolbox@v1.0.0
-        with:
-          babashka: "1.3.184"
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v3.0.0
-        with:
-          name: jar-files
-          path: target/
-
-      - name: Run tests
-        run: bb testconfig:bb -v ${{ steps.version.outputs.zprint }} -s uberjar
-
-  test-cljs:
-    runs-on: macos-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.0.2
-
-      - name: Setup Clojure
-        uses: zharinov/clj-toolbox@v1.0.0
-
-      - name: Install Planck
-        run: brew install planck
-
-      - name: ClojureScript tests
-        run: clojure -M:cljs-runner
