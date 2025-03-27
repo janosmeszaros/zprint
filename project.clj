@@ -52,4 +52,4 @@
                  #_[org.clojure/clojure "1.8.0"]
                  #_[org.babashka/sci "0.7.39"]
                  [org.babashka/sci "0.8.40"]
-                 [rewrite-clj/rewrite-clj "1.1.47"]])
+                 [rewrite-clj/rewrite-clj "1.1.49"]])
